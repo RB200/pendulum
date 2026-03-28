@@ -11,7 +11,30 @@ class Engine:
     def step(self):
         for obj in self.objs:
             dt = self.dt
-            floor_y = obj.radius
+            floor_y = getattr(obj, "collision_radius", getattr(obj, "radius", 0.0))
+            g = abs(self.gravity)
+
+            if hasattr(obj, "theta"):
+                cart_xdd = getattr(obj.cart, "xdd", 0.0)
+                theta_dd = (
+                    -(g / obj.length) * math.sin(obj.theta)
+                    - (cart_xdd / obj.length) * math.cos(obj.theta)
+                )
+                obj.theta_d += theta_dd * dt
+                obj.theta += obj.theta_d * dt
+                obj.refresh_geometry()
+                continue
+
+            if hasattr(obj, "refresh_geometry"):
+                obj.refresh_geometry()
+                continue
+
+            if getattr(obj, "fixed_y", False):
+                obj.x = obj.x + obj.xd * dt + 0.5 * obj.xdd * dt * dt
+                obj.xd = obj.xd + obj.xdd * dt
+                obj.clamp_to_track()
+                continue
+
 
             # Save state at beginning of step
             x0 = obj.x
@@ -89,13 +112,17 @@ class Engine:
             obj.y = y
             obj.xd = xd
             obj.yd = yd
-            obj.xdd = obj.xdd  
+            obj.xdd = obj.xdd
             obj.ydd = self.gravity
 
         self.t += self.dt
 
         
     def add_object(self, obj):
+        if hasattr(obj, "refresh_geometry"):
+            obj.refresh_geometry()
+        if getattr(obj, "fixed_y", False):
+            obj.clamp_to_track()
         self.objs.append(obj)
 
     def reset(self):
