@@ -1,103 +1,109 @@
-import time
 import math
 
 class Engine:
     def __init__(self):
-        self.gravity = 9.8
-
-        self.x = 0.0
-        self.y = 1.0
-
-        self.xd = 0.0
-        self.yd = 0.0
-
-        self.xdd = 0.0
-        self.ydd = -self.gravity
-
         self.COR = 0.9
+        self.dt = 0.025
+        self.gravity = -9.8
         self.t = 0.0
+        self.objs = []
 
     def step(self):
-        t0 = time.monotonic()
-        time.sleep(0.025)
-        dt = time.monotonic() - t0
+        for obj in self.objs:
+            dt = self.dt
+            floor_y = obj.radius
 
-        # Save state at beginning of step
-        x0 = self.x
-        y0 = self.y
-        xd0 = self.xd
-        yd0 = self.yd
+            # Save state at beginning of step
+            x0 = obj.x
+            y0 = obj.y
+            xd0 = obj.xd
+            yd0 = obj.yd
 
-        # Predict full-step motion
-        x1 = x0 + xd0 * dt + 0.5 * self.xdd * dt * dt
-        y1 = y0 + yd0 * dt + 0.5 * self.ydd * dt * dt
+            # Predict full-step motion
+            x1 = x0 + xd0 * dt + 0.5 * obj.xdd * dt * dt
+            y1 = y0 + yd0 * dt + 0.5 * obj.ydd * dt * dt
 
-        xd1 = xd0 + self.xdd * dt
-        yd1 = yd0 + self.ydd * dt
+            xd1 = xd0 + obj.xdd * dt
+            yd1 = yd0 + obj.ydd * dt
 
-        if y1 > 0:
-            x = x1
-            y = y1
-            xd = xd1
-            yd = yd1
-        else:
-            a = 0.5 * self.ydd
-            b = yd0
-            c = y0
-
-            discriminant = b * b - 4 * a * c
-
-            if discriminant < 0:
+            if y1 >= floor_y:
                 x = x1
-                y = 0.0
+                y = y1
                 xd = xd1
-                yd = -yd1 * self.COR
+                yd = yd1
             else:
-                sqrt_disc = math.sqrt(discriminant)
+                a = 0.5 * obj.ydd
+                b = yd0
+                c = y0 - floor_y
 
-                tau1 = (-b + sqrt_disc) / (2 * a)
-                tau2 = (-b - sqrt_disc) / (2 * a)
+                discriminant = b * b - 4 * a * c
 
-                tau_hit = None
-                for tau in (tau1, tau2):
-                    if 0 <= tau <= dt:
-                        tau_hit = tau
-                        break
-
-                if tau_hit is None:
+                if discriminant < 0:
                     x = x1
-                    y = 0.0
+                    y = floor_y
                     xd = xd1
                     yd = -yd1 * self.COR
                 else:
-                    x_hit = x0 + xd0 * tau_hit + 0.5 * self.xdd * tau_hit * tau_hit
-                    y_hit = 0.0
-                    xd_hit = xd0 + self.xdd * tau_hit
-                    yd_hit = yd0 + self.ydd * tau_hit
+                    sqrt_disc = math.sqrt(discriminant)
 
-                    yd_bounce = -yd_hit * self.COR
-                    xd_bounce = xd_hit
+                    tau1 = (-b + sqrt_disc) / (2 * a)
+                    tau2 = (-b - sqrt_disc) / (2 * a)
 
-                    dt_remain = dt - tau_hit
+                    tau_hit = None
+                    for tau in (tau1, tau2):
+                        if 0 <= tau <= dt:
+                            tau_hit = tau
+                            break
 
-                    x = x_hit + xd_bounce * dt_remain + 0.5 * self.xdd * dt_remain * dt_remain
-                    y = y_hit + yd_bounce * dt_remain + 0.5 * self.ydd * dt_remain * dt_remain
+                    if tau_hit is None:
+                        x = x1
+                        y = floor_y
+                        xd = xd1
+                        yd = -yd1 * self.COR
+                    else:
+                        x_hit = x0 + xd0 * tau_hit + 0.5 * obj.xdd * tau_hit * tau_hit
+                        y_hit = floor_y
+                        xd_hit = xd0 + obj.xdd * tau_hit
+                        yd_hit = yd0 + obj.ydd * tau_hit
 
-                    xd = xd_bounce + self.xdd * dt_remain
-                    yd = yd_bounce + self.ydd * dt_remain
+                        yd_bounce = -yd_hit * self.COR
+                        xd_bounce = xd_hit
 
-                    if y < 0:
-                        y = 0
+                        dt_remain = dt - tau_hit
 
-                    if y == 0 and abs(yd) < 0.15:
-                        yd = 0.0
-                        xd = 0.0
+                        x = x_hit + xd_bounce * dt_remain + 0.5 * obj.xdd * dt_remain * dt_remain
+                        y = y_hit + yd_bounce * dt_remain + 0.5 * obj.ydd * dt_remain * dt_remain
 
-        # WRITE BACK TO OBJECT
-        self.x = x
-        self.y = y
-        self.xd = xd
-        self.yd = yd
-        self.t += dt
+                        xd = xd_bounce + obj.xdd * dt_remain
+                        yd = yd_bounce + obj.ydd * dt_remain
 
-        return [round(self.x,4), round(self.y,4), round(self.xd,4), round(self.yd,4), round(self.xdd,4), round(self.ydd,4), round(self.t,4)]
+                        if y < floor_y:
+                            y = floor_y
+
+                        if y <= floor_y and abs(yd) < 0.15:
+                            yd = 0.0
+                            xd = 0.0
+
+            # WRITE BACK TO OBJECT
+            obj.x = x
+            obj.y = y
+            obj.xd = xd
+            obj.yd = yd
+            obj.xdd = obj.xdd  
+            obj.ydd = self.gravity
+
+        self.t += self.dt
+
+        
+    def add_object(self, obj):
+        self.objs.append(obj)
+
+    def reset(self):
+        self.t = 0.0
+        for obj in self.objs:
+            obj.reset()
+
+    def reset_heights(self):
+        self.t = 0.0
+        for obj in self.objs:
+            obj.reset_height()
